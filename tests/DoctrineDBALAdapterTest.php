@@ -8,6 +8,7 @@ use League\Flysystem\FilesystemAdapter;
 use WGG\Flysystem\Doctrine\DoctrineDBALAdapter;
 
 use function dirname;
+use function file_get_contents;
 
 /**
  * @covers \WGG\Flysystem\Doctrine\DoctrineDBALAdapter

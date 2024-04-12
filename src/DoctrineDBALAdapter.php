@@ -30,7 +30,18 @@ use RuntimeException;
 use Throwable;
 
 use function dirname;
+use function error_get_last;
+use function explode;
+use function fclose;
+use function fwrite;
+use function implode;
 use function is_resource;
+use function rewind;
+use function sprintf;
+use function stream_get_contents;
+use function substr_count;
+use function time;
+use function tmpfile;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -116,9 +127,6 @@ SQL,
         $this->writeStream($path, $resource, $config);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function writeStream(string $path, $contents, Config $config): void
     {
         try {
@@ -210,9 +218,6 @@ SQL,
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function readStream(string $path): mixed
     {
         try {
