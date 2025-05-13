@@ -23,7 +23,6 @@ class DoctrineDBALAdapterWithPrefixTest extends FilesystemAdapterTestCase
         );
 
         $connection->executeStatement((string) file_get_contents(dirname(__DIR__).'/schema/sqlite.sql'));
-        $connection->executeStatement('DELETE FROM flysystem_files;');
 
         return new DoctrineDBALAdapter(connection: $connection, prefix: 'prefix_test');
     }
