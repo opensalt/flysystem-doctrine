@@ -5,6 +5,7 @@ namespace WGG\Flysystem\Doctrine;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Platforms\SQLServerPlatform;
 use Doctrine\DBAL\Types\Types;
 use League\Flysystem\Config;
 use League\Flysystem\DirectoryAttributes;
@@ -95,14 +96,14 @@ final class DoctrineDBALAdapter implements FilesystemAdapter
     private function exists(string $prefixedPath, string $type): bool
     {
         return (bool) $this->connection->executeQuery(<<<SQL
-SELECT EXISTS (
+SELECT CASE WHEN EXISTS (
     SELECT
         1
     FROM {$this->table}
     WHERE
         path = :path AND
         type = :type
-)
+) THEN 1 ELSE 0 END
 SQL,
             [
                 'path' => $prefixedPath,
@@ -138,8 +139,8 @@ SQL,
              * UPDATE if file exists
              * INSERT if not
              */
+            $pathPrefixed = $this->prefixer->prefixPath($path);
             if ($this->fileExists($path)) {
-                $path = $this->prefixer->prefixPath($path);
                 $this->connection->update($this->table,
                     [
                         'contents' => $contents,
@@ -147,22 +148,22 @@ SQL,
                         'visibility' => $config->get(Config::OPTION_VISIBILITY, Visibility::PUBLIC),
                     ],
                     [
-                        'path' => $path,
+                        'path' => $pathPrefixed,
                     ],
                     [
                         'contents' => Types::BINARY,
                         'timestamp' => Types::INTEGER,
-                    ]);
+                    ]
+                );
             } else {
-                $path = $this->prefixer->prefixPath($path);
                 /* @var int|string $timestamp */
                 $this->connection->insert($this->table, [
-                    'path' => $path,
+                    'path' => $pathPrefixed,
                     'type' => self::TYPE_FILE,
                     'timestamp' => $config->get('timestamp', time()),
-                    'level' => $this->directoryLevel($path),
+                    'level' => $this->directoryLevel($pathPrefixed),
                     'contents' => $contents,
-                    'mimetype' => $this->mimeTypeDetector->detectMimeType($path, $contents),
+                    'mimetype' => $this->mimeTypeDetector->detectMimeType($pathPrefixed, $contents),
                     'visibility' => $config->get(Config::OPTION_VISIBILITY, Visibility::PUBLIC),
                 ], [
                     'path' => ParameterType::STRING,
@@ -175,16 +176,23 @@ SQL,
                 ]);
             }
 
-            $this->connection->executeStatement(<<<SQL
+            if ($this->connection->getDatabasePlatform() instanceof SQLServerPlatform) {
+                $lengthFnName = 'LEN';
+            } else {
+                $lengthFnName = 'LENGTH';
+            }
+
+            $this->connection->executeStatement(
+                <<<SQL
 UPDATE
     {$this->table}
 SET
-    size = LENGTH(contents)
+    size = {$lengthFnName}(contents)
 WHERE
     path = :path
 SQL,
                 [
-                    'path' => $path,
+                    'path' => $pathPrefixed,
                 ],
                 [
                     'path' => ParameterType::STRING,
@@ -259,7 +267,7 @@ SQL,
                 ->delete(
                     $this->table,
                     [
-                        'path' => $path,
+                        'path' => $this->prefixer->prefixPath($path),
                         'type' => self::TYPE_FILE,
                     ],
                 );
@@ -411,8 +419,8 @@ SQL,
 
         try {
             $queryBuilder = $this->connection->createQueryBuilder()
-                ->from($this->table)
-                ->select('path, size, mimetype, timestamp, type, visibility');
+                                             ->from($this->table)
+                                             ->select('path, size, mimetype, timestamp, type, visibility');
 
             if (!empty($path)) {
                 $expressionBuilder = $this->connection->createExpressionBuilder();
@@ -435,10 +443,8 @@ SQL,
                             ParameterType::INTEGER),
                     );
                 }
-            } else {
-                if (!$deep) {
-                    $queryBuilder->andWhere('level = 0');
-                }
+            } elseif (!$deep) {
+                $queryBuilder->andWhere('level = 0');
             }
             $queryBuilder->orderBy('path', 'ASC');
 
