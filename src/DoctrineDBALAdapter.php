@@ -105,7 +105,7 @@ SELECT CASE WHEN EXISTS (
 ) THEN 1 ELSE 0 END
 SQL,
             [
-                'path' => $prefixedPath,
+                'path' => rtrim($prefixedPath, DIRECTORY_SEPARATOR),
                 'type' => $type,
             ],
             [
@@ -277,7 +277,7 @@ SQL,
             return;
         }
         try {
-            $path = $this->prefixer->prefixPath($path);
+            $pathPrefixed = $this->prefixer->prefixPath(rtrim($path, '/'));
 
             $queryBuilder = $this->connection
                 ->createQueryBuilder();
@@ -288,8 +288,8 @@ SQL,
                 ->delete($this->table)
                 ->where(
                     $expressionBuilder->or(
-                        $expressionBuilder->eq('path', $queryBuilder->createNamedParameter($path)),
-                        $expressionBuilder->like('path', $queryBuilder->createNamedParameter($path.'/%'))
+                        $expressionBuilder->eq('path', $queryBuilder->createNamedParameter($pathPrefixed)),
+                        $expressionBuilder->like('path', $queryBuilder->createNamedParameter($pathPrefixed.'/%'))
                     )
                 )
                 ->executeStatement();
@@ -305,9 +305,9 @@ SQL,
             return;
         }
 
-        $path = $this->prefixer->prefixPath($path);
+        $pathPrefixed = $this->prefixer->prefixPath($path);
         $directoryTree = [];
-        $parts = explode(DIRECTORY_SEPARATOR, $path);
+        $parts = explode(DIRECTORY_SEPARATOR, $pathPrefixed);
 
         $previousElement = '';
         foreach ($parts as $element) {
@@ -410,31 +410,31 @@ SQL,
 
     public function listContents(string $path, bool $deep): iterable
     {
-        $path = $this->prefixer->prefixPath($path);
+        $pathPrefixed = rtrim($this->prefixer->prefixPath($path), '/');
 
         try {
             $queryBuilder = $this->connection->createQueryBuilder()
                                              ->from($this->table)
                                              ->select('path, size, mimetype, timestamp, type, visibility');
 
-            if (!empty($path)) {
+            if (!empty($pathPrefixed)) {
                 $expressionBuilder = $this->connection->createExpressionBuilder();
 
                 $queryBuilder
                     ->andWhere(
                         $expressionBuilder->or(
-                            $expressionBuilder->eq('path', $queryBuilder->createNamedParameter($path)),
-                            $expressionBuilder->like('path', $queryBuilder->createNamedParameter($path.'/%'))
+                            $expressionBuilder->eq('path', $queryBuilder->createNamedParameter($pathPrefixed)),
+                            $expressionBuilder->like('path', $queryBuilder->createNamedParameter($pathPrefixed.'/%'))
                         )
                     );
                 if ($deep) {
                     $queryBuilder->andWhere(
-                        'level >= '.$queryBuilder->createNamedParameter($this->directoryLevel($path) + 1,
+                        'level >= '.$queryBuilder->createNamedParameter($this->directoryLevel($pathPrefixed) + 1,
                             ParameterType::INTEGER),
                     );
                 } else {
                     $queryBuilder->andWhere(
-                        'level = '.$queryBuilder->createNamedParameter($this->directoryLevel($path) + 1,
+                        'level = '.$queryBuilder->createNamedParameter($this->directoryLevel($pathPrefixed) + 1,
                             ParameterType::INTEGER),
                     );
                 }
@@ -460,6 +460,11 @@ SQL,
             // Copy the file
             $this->doCopy($source, $destination, $config);
 
+            if ($source === $destination) {
+                // Source and destination are the same, no need to copy
+                return;
+            }
+
             // Remove file at source location
             $this->delete($source);
         } catch (Throwable $e) {
@@ -481,6 +486,11 @@ SQL,
         $record = $this->getFile($source);
         if (!isset($record)) {
             throw UnableToReadFile::fromLocation($source, 'File does not exist');
+        }
+
+        if ($source === $destination) {
+            // Source and destination are the same, no need to copy
+            return;
         }
 
         // Write a new file on given destination. NOTE: If the file already exists,
