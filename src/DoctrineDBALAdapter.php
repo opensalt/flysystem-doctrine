@@ -239,9 +239,9 @@ SQL,
 
             $resource = tmpfile();
             if (false === $resource) {
-                $error = error_get_last();
                 throw new RuntimeException(error_get_last()['message'] ?? 'Unknown error occurred');
             }
+            /** @var string $contents The resource type is handled by the if clause above. */
             fwrite($resource, $contents);
             rewind($resource);
 
@@ -493,6 +493,7 @@ SQL,
 
             fclose($contents);
         } else {
+            /** @var string $contents The resource type is handled by the first if clause. */
             $this->write($destination, $contents, $config);
         }
     }
