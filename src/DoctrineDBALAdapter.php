@@ -5,7 +5,6 @@ namespace WGG\Flysystem\Doctrine;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
-use Doctrine\DBAL\Platforms\SQLServerPlatform;
 use Doctrine\DBAL\Types\Types;
 use League\Flysystem\Config;
 use League\Flysystem\DirectoryAttributes;
@@ -176,18 +175,14 @@ SQL,
                 ]);
             }
 
-            if ($this->connection->getDatabasePlatform() instanceof SQLServerPlatform) {
-                $lengthFnName = 'LEN';
-            } else {
-                $lengthFnName = 'LENGTH';
-            }
+            $lengthExpression = $this->connection->getDatabasePlatform()->getLengthExpression('contents');
 
             $this->connection->executeStatement(
                 <<<SQL
 UPDATE
     {$this->table}
 SET
-    size = {$lengthFnName}(contents)
+    size = {$lengthExpression}
 WHERE
     path = :path
 SQL,
