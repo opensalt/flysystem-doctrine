@@ -37,6 +37,7 @@ use function fwrite;
 use function implode;
 use function is_resource;
 use function rewind;
+use function rtrim;
 use function sprintf;
 use function stream_get_contents;
 use function substr_count;
@@ -76,7 +77,7 @@ final class DoctrineDBALAdapter implements FilesystemAdapter
     public function __construct(
         private Connection $connection,
         private string $table = 'flysystem_files',
-        string $prefix = ''
+        string $prefix = '',
     ) {
         $this->prefixer = new PathPrefixer($prefix, DIRECTORY_SEPARATOR);
         $this->mimeTypeDetector = new ExtensionMimeTypeDetector();
@@ -241,8 +242,8 @@ SQL,
             if (false === $resource) {
                 throw new RuntimeException(error_get_last()['message'] ?? 'Unknown error occurred');
             }
-            /** @var string $contents The resource type is handled by the if clause above. */
-            fwrite($resource, $contents);
+            /* @var string $contents The resource type is handled by the if clause above. */
+            fwrite($resource, $contents); // @phpstan-ignore-line
             rewind($resource);
 
             return $resource;
@@ -503,8 +504,8 @@ SQL,
 
             fclose($contents);
         } else {
-            /** @var string $contents The resource type is handled by the first if clause. */
-            $this->write($destination, $contents, $config);
+            /* @var string $contents The resource type is handled by the first if clause. */
+            $this->write($destination, $contents, $config); // @phpstan-ignore-line
         }
     }
 
@@ -572,7 +573,7 @@ SQL,
             default => throw new LogicException(sprintf('Unable to create metadata of type %s. Allowed types: %s',
                 $record['type'],
                 implode(', ', [self::TYPE_FILE, self::TYPE_DIR])
-            ))
+            )),
         };
     }
 
